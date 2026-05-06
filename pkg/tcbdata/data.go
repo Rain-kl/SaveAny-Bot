@@ -16,9 +16,56 @@ const (
 
 const (
 	ConflictStrategyRename    = "rename"
+	ConflictStrategyAsk       = "ask"
 	ConflictStrategyOverwrite = "overwrite"
 	ConflictStrategySkip      = "skip"
 )
+
+func ConflictStrategyValues() []string {
+	return []string{
+		ConflictStrategyRename,
+		ConflictStrategyAsk,
+		ConflictStrategyOverwrite,
+		ConflictStrategySkip,
+	}
+}
+
+func ConflictStrategyDisplay(strategy, lang string) string {
+	displays := map[string]map[string]string{
+		ConflictStrategyRename: {
+			"zh-CN": "始终重命名",
+			"en":    "Always rename",
+		},
+		ConflictStrategyAsk: {
+			"zh-CN": "每次询问",
+			"en":    "Ask every time",
+		},
+		ConflictStrategyOverwrite: {
+			"zh-CN": "始终覆盖",
+			"en":    "Always overwrite",
+		},
+		ConflictStrategySkip: {
+			"zh-CN": "始终跳过",
+			"en":    "Always skip",
+		},
+	}
+	if display, ok := displays[strategy]; ok {
+		if str, ok := display[lang]; ok {
+			return str
+		}
+		return display["en"]
+	}
+	return strategy
+}
+
+func IsConflictStrategy(strategy string) bool {
+	for _, value := range ConflictStrategyValues() {
+		if strategy == value {
+			return true
+		}
+	}
+	return false
+}
 
 // type TaskDataTGFiles struct {
 // 	Files   []tfile.TGFileMessage

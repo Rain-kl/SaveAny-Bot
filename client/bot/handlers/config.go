@@ -26,6 +26,10 @@ func handleConfigCmd(ctx *ext.Context, update *ext.Update) error {
 							Text: i18n.T(i18nk.BotMsgConfigButtonFilenameStrategy),
 							Data: fmt.Appendf(nil, "%s %s", tcbdata.TypeConfig, "fnamest"),
 						},
+						&tg.KeyboardButtonCallback{
+							Text: i18n.T(i18nk.BotMsgConfigButtonConflictStrategy),
+							Data: fmt.Appendf(nil, "%s %s", tcbdata.TypeConfig, "conflictst"),
+						},
 					},
 				},
 			},
@@ -51,6 +55,8 @@ func handleConfigCallback(ctx *ext.Context, update *ext.Update) error {
 	switch args[1] {
 	case "fnamest":
 		return handleConfigFnameSTCallback(ctx, update)
+	case "conflictst":
+		return handleConfigConflictSTCallback(ctx, update)
 	default:
 		return invaildDataAnswer()
 	}
@@ -108,6 +114,60 @@ func handleConfigFnameSTCallback(ctx *ext.Context, update *ext.Update) error {
 		ReplyMarkup: markup,
 	})
 	return dispatcher.EndGroups
+}
+
+func handleConfigConflictSTCallback(ctx *ext.Context, update *ext.Update) error {
+	userID := update.CallbackQuery.GetUserID()
+	user, err := database.GetUserByChatID(ctx, userID)
+	if err != nil {
+		return err
+	}
+	args := strings.Fields(string(update.CallbackQuery.Data))
+	if len(args) == 3 {
+		selected := args[2]
+		if !tcbdata.IsConflictStrategy(selected) {
+			return fmt.Errorf("invalid conflict strategy: %s", selected)
+		}
+		user.ConflictStrategy = selected
+		if err := database.UpdateUser(ctx, user); err != nil {
+			return err
+		}
+		ctx.EditMessage(userID, &tg.MessagesEditMessageRequest{
+			ID: update.CallbackQuery.GetMsgID(),
+			Message: i18n.T(i18nk.BotMsgConfigInfoConflictStrategySet, map[string]any{
+				"Strategy": tcbdata.ConflictStrategyDisplay(selected, config.C().Lang),
+			}),
+		})
+		return dispatcher.EndGroups
+	}
+
+	opts := tcbdata.ConflictStrategyValues()
+	buttons := make([]tg.KeyboardButtonClass, 0, len(opts))
+	for _, opt := range opts {
+		buttons = append(buttons, &tg.KeyboardButtonCallback{
+			Text: tcbdata.ConflictStrategyDisplay(opt, config.C().Lang),
+			Data: fmt.Appendf(nil, "%s %s %s", tcbdata.TypeConfig, "conflictst", opt),
+		})
+	}
+	markup := &tg.ReplyInlineMarkup{Rows: []tg.KeyboardButtonRow{
+		{Buttons: buttons},
+	}}
+	currentSt := effectiveUserConflictStrategy(user)
+	ctx.EditMessage(userID, &tg.MessagesEditMessageRequest{
+		ID: update.CallbackQuery.GetMsgID(),
+		Message: i18n.T(i18nk.BotMsgConfigPromptSelectConflictStrategy, map[string]any{
+			"Strategy": tcbdata.ConflictStrategyDisplay(currentSt, config.C().Lang),
+		}),
+		ReplyMarkup: markup,
+	})
+	return dispatcher.EndGroups
+}
+
+func effectiveUserConflictStrategy(user *database.User) string {
+	if user != nil && tcbdata.IsConflictStrategy(user.ConflictStrategy) {
+		return user.ConflictStrategy
+	}
+	return tcbdata.ConflictStrategyRename
 }
 
 func handleConfigFnameTmpl(ctx *ext.Context, update *ext.Update) error {
